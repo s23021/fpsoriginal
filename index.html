@@ -327,6 +327,7 @@
 
                 // --- 高架鉄道と駅 (x = 0 のライン) ---
                 if (x === 0) {
+                    
                     const isStation = (z === 0);
                     
                     // 高架の支柱
@@ -342,23 +343,23 @@
                     const railMat = new THREE.MeshStandardMaterial({color: 0x333333});
                     const rail1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, blockSize + 1), railMat);
                     rail1.position.set(px - 2, 13, pz); scene.add(rail1);
-                    const rail2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, blockSize + 1), railMat);
+                    const rail2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, blockSize + 10), railMat);
                     rail2.position.set(px + 2, 13, pz); scene.add(rail2);
 
                     if (isStation) {
                         // プラットフォーム
                         const platMat = new THREE.MeshStandardMaterial({color: 0xaaaaaa});
                         const platform1 = new THREE.Mesh(new THREE.BoxGeometry(6, 1.5, blockSize), platMat);
-                        platform1.position.set(px - 7, 13.5, pz); scene.add(platform1); walkableObjects.push(platform1);
+                        platform1.position.set(px - 7, 13.5, 50); scene.add(platform1); walkableObjects.push(platform1);
                         
                         const platform2 = new THREE.Mesh(new THREE.BoxGeometry(6, 1.5, blockSize), platMat);
-                        platform2.position.set(px + 7, 13.5, pz); scene.add(platform2); walkableObjects.push(platform2);
+                        platform2.position.set(px + 7, 13.5, 50); scene.add(platform2); walkableObjects.push(platform2);
                         
                         // 駅の屋根 (半透明アーチ)
-                        const roofMat = new THREE.MeshPhysicalMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, roughness: 0.1});
-                        const roof = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, blockSize, 16, 1, true, 0, Math.PI));
-                        roof.rotation.z = Math.PI / 2; roof.rotation.x = Math.PI / 2;
-                        roof.position.set(px, 20, pz); scene.add(roof);
+                        //const roofMat = new THREE.MeshPhysicalMaterial({color: 0xaaccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, roughness: 0.1});
+                        //const roof = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, blockSize, 16, 1, true, 0, Math.PI));
+                        //roof.rotation.z = Math.PI / 2; roof.rotation.x = Math.PI / 2;
+                       //roof.position.set(px, 20, 50); scene.add(roof);
                     }
                     
                     // 道路は描画する
@@ -367,6 +368,48 @@
                     scene.add(roadX); walkableObjects.push(roadX);
                     continue; // 通常のビルは建てない
                 }
+
+                if (z === 0) {
+
+    const isStation = (x === 0);
+
+    // 支柱
+    const pillar = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.5, 1.5, 12),
+        concreteMat
+    );
+    pillar.position.set(px, 6, pz);
+    scene.add(pillar);
+
+    // デッキ（向きが違う！）
+    const deckWidth = isStation ? 26 : 10;
+    const deck = new THREE.Mesh(
+        new THREE.BoxGeometry(blockSize + 1, 1, deckWidth),
+        concreteMat
+    );
+    deck.position.set(px, 12.5, pz);
+    scene.add(deck);
+    walkableObjects.push(deck);
+
+    // レール（向きが違う）
+    const railMat = new THREE.MeshStandardMaterial({color:0x333333});
+
+    const rail1 = new THREE.Mesh(
+        new THREE.BoxGeometry(blockSize + 1, 0.5, 0.3),
+        railMat
+    );
+    rail1.position.set(px, 13, pz - 2);
+    scene.add(rail1);
+
+    const rail2 = new THREE.Mesh(
+        new THREE.BoxGeometry(blockSize + 1, 0.5, 0.3),
+        railMat
+    );
+    rail2.position.set(px, 13, pz + 2);
+    scene.add(rail2);
+
+    continue;
+}
 
                 // --- 通常の道路 ---
                 const roadX = new THREE.Mesh(new THREE.PlaneGeometry(blockSize, roadWidth), roadMat);
@@ -417,7 +460,7 @@
                     // 渡り廊下 (左側のタワーから右に向けて生成)
                     if (isTwinTowerLeft) {
                         const corridor = new THREE.Mesh(new THREE.BoxGeometry(40, 8, 8), bldMaterials[3][0]);
-                        corridor.position.set(16, 150, 0); // ローカル座標で右に伸ばす
+                        corridor.position.set(25, 150, 0); // ローカル座標で右に伸ばす
                         group.add(corridor); walkableObjects.push(corridor);
                     }
                     addRoofDetails(group, h, bldSize);
@@ -510,28 +553,62 @@
         walkableObjects.push(trainGroup);
 
         // 電車の状態管理
+        let trainDirection = 'north'; 
+// north, south, east, west
         let trainState = 'running';
         let trainWaitTimer = 0;
         const trainSpeed = 30;
 
+        
         function updateTrain(delta) {
-            if (trainState === 'running') {
-                trainGroup.position.z -= trainSpeed * delta; // 北向きに走る
-                
-                // 駅 (z=0) に近づいたら減速・停車
-                if (trainGroup.position.z <= 24 && trainGroup.position.z > 0) {
-                    trainState = 'waiting';
-                    trainWaitTimer = 6.0; // 6秒停車
-                    trainGroup.position.z = 24; // 先頭車両を駅の端に合わせる
-                } else if (trainGroup.position.z < -gridSize * blockSize / 2 - 100) {
-                    // マップ端を越えたら反対側から戻ってくる
-                    trainGroup.position.z = gridSize * blockSize / 2 + 100;
-                }
-            } else if (trainState === 'waiting') {
-                trainWaitTimer -= delta;
-                if (trainWaitTimer <= 0) trainState = 'running';
-            }
+
+    if (trainState === 'running') {
+
+        // 移動
+        switch(trainDirection) {
+            case 'north':
+                trainGroup.position.z -= trainSpeed * delta;
+                trainGroup.rotation.y = 0;
+                break;
+
+            case 'south':
+                trainGroup.position.z += trainSpeed * delta;
+                trainGroup.rotation.y = 0;
+                break;
+
+            case 'east':
+                trainGroup.position.x += trainSpeed * delta;
+                trainGroup.rotation.y = Math.PI / 2;
+                break;
+
+            case 'west':
+                trainGroup.position.x -= trainSpeed * delta;
+                trainGroup.rotation.y = Math.PI / 2;
+                break;
         }
+
+        // クロス地点判定
+        if (Math.abs(trainGroup.position.x) < 5 &&
+            Math.abs(trainGroup.position.z) < 5) {
+
+            const dirs = ['north','south','east','west'];
+            trainDirection = dirs[Math.floor(Math.random()*4)];
+        }
+
+        // 端で反転
+        const limit = citySize / 2 + 100;
+
+        if (trainGroup.position.z > limit) trainDirection = 'north';
+        if (trainGroup.position.z < -limit) trainDirection = 'south';
+        if (trainGroup.position.x > limit) trainDirection = 'west';
+        if (trainGroup.position.x < -limit) trainDirection = 'east';
+    }
+
+    if (trainState === 'waiting') {
+        trainWaitTimer -= delta;
+        if (trainWaitTimer <= 0) trainState = 'running';
+    }
+}
 
         // --- ライティング ---
         const timeStops = [
